@@ -8,15 +8,17 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.codec.string.StringDecoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HttpServer {
+    static final Logger LOG = LoggerFactory.getLogger(HttpServer.class);
     public static int MAX_CHUNK_SIZE = 1024 * 1024 * 30;
+
     public void bind(int port) throws Exception {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -40,6 +42,7 @@ public class HttpServer {
                     });
 
             ChannelFuture f = b.bind(port).sync();
+            LOG.info(">>>>>>netty start port:{}<<<<<<", port);
             f.channel().closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
@@ -48,7 +51,7 @@ public class HttpServer {
     }
 
     public static void main(String[] args) {
-        int port = 56789;
+        int port = 45678;
         try {
             new HttpServer().bind(port);
         } catch (Exception e) {
