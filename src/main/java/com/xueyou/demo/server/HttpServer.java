@@ -9,9 +9,14 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.string.StringDecoder;
 
 public class HttpServer {
+    public static int MAX_CHUNK_SIZE = 1024 * 1024 * 30;
     public void bind(int port) throws Exception {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -21,22 +26,24 @@ public class HttpServer {
             b.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .option(ChannelOption.SO_BACKLOG, 1024)
-                    .childHandler(new ChildChannelHandler());
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel socketChannel) throws Exception {
+                            socketChannel.pipeline()
+                                    .addLast("http-decoder", new HttpRequestDecoder())
+                                    .addLast("http-chunk-aggregator",
+                                            new HttpObjectAggregator(HttpServer.MAX_CHUNK_SIZE))
+                                    .addLast("http-encoder", new HttpResponseEncoder())
+                                    .addLast("compressor", new HttpContentCompressor())
+                                    .addLast("handler", new NettyHttpServerHandler());
+                        }
+                    });
 
             ChannelFuture f = b.bind(port).sync();
             f.channel().closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
             workerGroup.shutdownGracefully();
-        }
-    }
-
-    private class ChildChannelHandler extends ChannelInitializer<SocketChannel> {
-        @Override
-        protected void initChannel(SocketChannel socketChannel) throws Exception {
-            socketChannel.pipeline().addLast(new LineBasedFrameDecoder(1024));
-            socketChannel.pipeline().addLast(new StringDecoder());
-            socketChannel.pipeline().addLast(new TimeServerHandler());
         }
     }
 
